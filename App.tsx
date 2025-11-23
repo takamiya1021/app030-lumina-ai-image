@@ -6,7 +6,7 @@ import { ImageHistorySlider } from './components/ImageHistorySlider';
 import { saveImageToHistory } from './services/storageService';
 import { GeneratedImage, PresetConfig, ViewMode } from './types';
 import { PRESETS } from './constants';
-import { Sparkles, Layers, Layout, ShieldAlert, X, LogIn, Settings } from 'lucide-react';
+import { Sparkles, Layers, Layout, ShieldAlert, X, LogIn, Settings, PlusCircle, LayoutGrid } from 'lucide-react';
 
 const App: React.FC = () => {
   const [apiKeyValid, setApiKeyValid] = useState<boolean>(false);
@@ -18,6 +18,7 @@ const App: React.FC = () => {
   const [useEconomy, setUseEconomy] = useState<boolean>(false);
   const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState<number>(0);
   const [creationFormData, setCreationFormData] = useState<Record<string, string>>({});
+  const [creationUploadedFiles, setCreationUploadedFiles] = useState<File[]>([]);
 
   // State to pass from Creation to Refine
   const [lastGeneratedImage, setLastGeneratedImage] = useState<GeneratedImage | undefined>(undefined);
@@ -189,10 +190,22 @@ const App: React.FC = () => {
           {/* Desktop Navigation Switcher - Hidden on Mobile */}
           <div className="hidden md:flex bg-gray-900 border border-gray-800 rounded-lg p-1">
             <button
-              onClick={() => setCurrentMode('create')}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${currentMode === 'create' ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-400 hover:text-gray-200'}`}
+              onClick={() => {
+                setCreationFormData({});
+                setCreationUploadedFiles([]);
+                setCurrentMode('create');
+              }}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${currentMode === 'create' && Object.keys(creationFormData).length === 0 ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-400 hover:text-gray-200'}`}
+              title="入力をクリアして新規作成"
             >
-              <Layout size={14} /> 新規作成
+              <PlusCircle size={14} /> 新規作成
+            </button>
+            <button
+              onClick={() => setCurrentMode('create')}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${currentMode === 'create' && Object.keys(creationFormData).length > 0 ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-400 hover:text-gray-200'}`}
+              title="現在の入力を維持して作成"
+            >
+              <LayoutGrid size={14} /> 続けて作成
             </button>
             <button
               onClick={() => setCurrentMode('refine')}
@@ -252,6 +265,7 @@ const App: React.FC = () => {
                   setSelectedPreset(preset);
                   setUseEconomy(false); // Reset to Pro mode when changing preset
                   setCreationFormData({}); // Reset form data when changing preset
+                  setCreationUploadedFiles([]); // Reset uploaded files when changing preset
                 }}
               />
 
@@ -263,6 +277,8 @@ const App: React.FC = () => {
                   onEconomyChange={setUseEconomy}
                   formData={creationFormData}
                   onFormDataChange={setCreationFormData}
+                  uploadedFiles={creationUploadedFiles}
+                  onUploadedFilesChange={setCreationUploadedFiles}
                 />
 
                 <ImageHistorySlider
@@ -288,23 +304,40 @@ const App: React.FC = () => {
         <div className="absolute inset-0 bg-gray-950/90 backdrop-blur-xl border-t border-white/10 shadow-[0_-10px_30px_rgba(0,0,0,0.6)]"></div>
 
         <div className="relative flex justify-around items-center p-2 pb-5">
-          {/* Create Button */}
+          {/* New Create Button */}
+          <button
+            onClick={() => {
+              setCreationFormData({});
+              setCreationUploadedFiles([]);
+              setCurrentMode('create');
+            }}
+            className="relative group flex-1 flex flex-col items-center gap-1.5 py-2 rounded-xl transition-all duration-300"
+          >
+            <div className={`relative p-1 rounded-full transition-all duration-300 ${currentMode === 'create' && Object.keys(creationFormData).length === 0 ? 'text-blue-400 transform -translate-y-1' : 'text-gray-500 group-hover:text-gray-400'}`}>
+              <PlusCircle size={22} strokeWidth={2} />
+            </div>
+            <span className={`text-[10px] font-medium tracking-wide transition-colors ${currentMode === 'create' && Object.keys(creationFormData).length === 0 ? 'text-blue-100' : 'text-gray-500'}`}>
+              新規作成
+            </span>
+          </button>
+
+          {/* Continue Create Button */}
           <button
             onClick={() => setCurrentMode('create')}
             className="relative group flex-1 flex flex-col items-center gap-1.5 py-2 rounded-xl transition-all duration-300"
           >
-            {currentMode === 'create' && (
+            {currentMode === 'create' && Object.keys(creationFormData).length > 0 && (
               <div className="absolute inset-0 bg-blue-500/5 rounded-xl blur-sm" />
             )}
-            <div className={`relative p-1 rounded-full transition-all duration-300 ${currentMode === 'create' ? 'text-blue-400 transform -translate-y-1' : 'text-gray-500 group-hover:text-gray-400'}`}>
-              <Layout size={22} strokeWidth={currentMode === 'create' ? 2.5 : 2} />
+            <div className={`relative p-1 rounded-full transition-all duration-300 ${currentMode === 'create' && Object.keys(creationFormData).length > 0 ? 'text-blue-400 transform -translate-y-1' : 'text-gray-500 group-hover:text-gray-400'}`}>
+              <LayoutGrid size={22} strokeWidth={currentMode === 'create' && Object.keys(creationFormData).length > 0 ? 2.5 : 2} />
               {/* Active Dot */}
-              {currentMode === 'create' && (
+              {currentMode === 'create' && Object.keys(creationFormData).length > 0 && (
                 <span className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-blue-400 rounded-full shadow-[0_0_8px_rgba(59,130,246,1)]"></span>
               )}
             </div>
-            <span className={`text-[10px] font-medium tracking-wide transition-colors ${currentMode === 'create' ? 'text-blue-100' : 'text-gray-500'}`}>
-              新規作成
+            <span className={`text-[10px] font-medium tracking-wide transition-colors ${currentMode === 'create' && Object.keys(creationFormData).length > 0 ? 'text-blue-100' : 'text-gray-500'}`}>
+              続けて作成
             </span>
           </button>
 

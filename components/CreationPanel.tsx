@@ -10,11 +10,12 @@ interface Props {
   onEconomyChange: (value: boolean) => void;
   formData: Record<string, string>;
   onFormDataChange: (data: Record<string, string>) => void;
+  uploadedFiles: File[];
+  onUploadedFilesChange: (files: File[]) => void;
 }
 
-export const CreationPanel: React.FC<Props> = ({ preset, onSuccess, useEconomy, onEconomyChange, formData, onFormDataChange }) => {
+export const CreationPanel: React.FC<Props> = ({ preset, onSuccess, useEconomy, onEconomyChange, formData, onFormDataChange, uploadedFiles, onUploadedFilesChange }) => {
   const [isGenerating, setIsGenerating] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [activeHistoryField, setActiveHistoryField] = useState<string | null>(null);
   const [inputHistory, setInputHistory] = useState<Record<string, string[]>>({});
@@ -33,7 +34,7 @@ export const CreationPanel: React.FC<Props> = ({ preset, onSuccess, useEconomy, 
 
   // Reset uploaded files when preset changes (form data reset is handled by parent)
   useEffect(() => {
-    setUploadedFiles([]);
+    // Parent handles resetting uploadedFiles on preset change now
     setPreviewUrls(prev => {
       prev.forEach(url => URL.revokeObjectURL(url));
       return [];
@@ -59,7 +60,7 @@ export const CreationPanel: React.FC<Props> = ({ preset, onSuccess, useEconomy, 
   const handleClearForm = () => {
     if (confirm('入力内容をクリアしますか？')) {
       onFormDataChange({});
-      setUploadedFiles([]);
+      onUploadedFilesChange([]);
       // Reset economy mode to default (false) if user wants a full reset? 
       // User said "same state as new input", which usually implies default settings.
       // But economy mode is a global setting. Let's keep it as is for now unless requested.
@@ -78,16 +79,16 @@ export const CreationPanel: React.FC<Props> = ({ preset, onSuccess, useEconomy, 
         // Simpler: just replace or append up to 14.
         const remainingSlots = 14 - uploadedFiles.length;
         if (remainingSlots > 0) {
-          setUploadedFiles([...uploadedFiles, ...files.slice(0, remainingSlots)]);
+          onUploadedFilesChange([...uploadedFiles, ...files.slice(0, remainingSlots)]);
         }
       } else {
-        setUploadedFiles(totalFiles);
+        onUploadedFilesChange(totalFiles);
       }
     }
   };
 
   const removeFile = (index: number) => {
-    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+    onUploadedFilesChange(uploadedFiles.filter((_, i) => i !== index));
   };
 
   const saveToHistory = (key: string, value: string) => {
