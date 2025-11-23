@@ -319,13 +319,7 @@ MIT ライセンスの下で配布されています。詳細は `LICENSE` を�
 
 ## 📧 コンタクト
 
-**プロジェクトメンテナー**: [Your Name]
-
-- Email: your.email@example.com
-- GitHub: [@yourusername](https://github.com/yourusername)
-- プロジェクトリンク: [https://github.com/yourusername/Lumina-v1.1](https://github.com/yourusername/Lumina-v1.1)
-
-**AI Studio デモ**: [https://ai.studio/apps/drive/1nUEPgqlNFoo7lhBSLwH6IjjyRfqoGInE](https://ai.studio/apps/drive/1nUEPgqlNFoo7lhBSLwH6IjjyRfqoGInE)
+**プロジェクトメンテナー**: 吉倉大晄
 
 ---
 
