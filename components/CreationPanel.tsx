@@ -1,54 +1,128 @@
 import React, { useState, useEffect } from 'react';
 import { PresetConfig, GeneratedImage } from '../types';
 import { generateContent } from '../services/geminiService';
-import { Loader2, Upload, ArrowRight, Wand2, Zap, Sparkles } from 'lucide-react';
+import { Loader2, Upload, ArrowRight, Wand2, Zap, Sparkles, History, X, Clock } from 'lucide-react';
 
 interface Props {
   preset: PresetConfig;
   onSuccess: (images: GeneratedImage[], text?: string) => void;
+  useEconomy: boolean;
+  onEconomyChange: (value: boolean) => void;
+  formData: Record<string, string>;
+  onFormDataChange: (data: Record<string, string>) => void;
 }
 
-export const CreationPanel: React.FC<Props> = ({ preset, onSuccess }) => {
-  const [formData, setFormData] = useState<Record<string, string>>({});
+export const CreationPanel: React.FC<Props> = ({ preset, onSuccess, useEconomy, onEconomyChange, formData, onFormDataChange }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
-  const [useEconomy, setUseEconomy] = useState(false);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [activeHistoryField, setActiveHistoryField] = useState<string | null>(null);
+  const [inputHistory, setInputHistory] = useState<Record<string, string[]>>({});
 
-  // Reset form when preset changes
+  // Load history from local storage on mount
   useEffect(() => {
-    setFormData({});
+    const savedHistory = localStorage.getItem('lumina_input_history');
+    if (savedHistory) {
+      try {
+        setInputHistory(JSON.parse(savedHistory));
+      } catch (e) {
+        console.error("Failed to parse input history", e);
+      }
+    }
+  }, []);
+
+  // Reset uploaded files when preset changes (form data reset is handled by parent)
+  useEffect(() => {
     setUploadedFiles([]);
-    // Default to Pro mode for quality, unless user switches
-    setUseEconomy(false);
+    setPreviewUrls(prev => {
+      prev.forEach(url => URL.revokeObjectURL(url));
+      return [];
+    });
   }, [preset.id]);
 
+  // Update preview URLs when uploaded files change
+  useEffect(() => {
+    const newPreviewUrls = uploadedFiles.map(file => URL.createObjectURL(file));
+    setPreviewUrls(prev => {
+      prev.forEach(url => URL.revokeObjectURL(url));
+      return newPreviewUrls;
+    });
+    return () => {
+      newPreviewUrls.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [uploadedFiles]);
+
   const handleInputChange = (key: string, value: string) => {
-    setFormData(prev => ({ ...prev, [key]: value }));
+    onFormDataChange({ ...formData, [key]: value });
+  };
+
+  const handleClearForm = () => {
+    if (confirm('入力内容をクリアしますか？')) {
+      onFormDataChange({});
+      setUploadedFiles([]);
+      // Reset economy mode to default (false) if user wants a full reset? 
+      // User said "same state as new input", which usually implies default settings.
+      // But economy mode is a global setting. Let's keep it as is for now unless requested.
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      if (files.length > 14) {
-        alert("一度にアップロードできる参照画像は最大14枚です。最初の14枚のみが選択されました。");
-        setUploadedFiles(files.slice(0, 14));
+      const totalFiles = [...uploadedFiles, ...files];
+
+      if (totalFiles.length > 14) {
+        alert("一度にアップロードできる参照画像は最大14枚です。");
+        // Don't add if it exceeds limit, or add up to limit?
+        // Let's just take the first 14 of the new batch combined with old?
+        // Simpler: just replace or append up to 14.
+        const remainingSlots = 14 - uploadedFiles.length;
+        if (remainingSlots > 0) {
+          setUploadedFiles([...uploadedFiles, ...files.slice(0, remainingSlots)]);
+        }
       } else {
-        setUploadedFiles(files);
+        setUploadedFiles(totalFiles);
       }
     }
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const saveToHistory = (key: string, value: string) => {
+    if (!value || !value.trim()) return;
+
+    setInputHistory(prev => {
+      const currentList = prev[key] || [];
+      // Remove duplicates and add to top
+      const newList = [value, ...currentList.filter(item => item !== value)].slice(0, 10);
+
+      const newHistory = { ...prev, [key]: newList };
+      localStorage.setItem('lumina_input_history', JSON.stringify(newHistory));
+      return newHistory;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsGenerating(true);
+
+    // Save textarea inputs to history
+    preset.fields.forEach(field => {
+      if (field.type === 'textarea' && formData[field.key]) {
+        saveToHistory(field.key, formData[field.key]);
+      }
+    });
+
     try {
       const result = await generateContent(preset, formData, uploadedFiles, useEconomy);
-      
+
       const newImages: GeneratedImage[] = result.images.map(url => ({
         id: Math.random().toString(36).substr(2, 9),
         url,
-        prompt: preset.name, 
-        model: preset.model.includes('imagen') ? 'Imagen 4' : (useEconomy ? 'Gemini 2.5 Flash' : 'Gemini 3 Pro'),
+        prompt: preset.name,
+        model: preset.model.includes('imagen') ? 'Imagen 4' : (useEconomy ? 'Gemini 2.5 Flash' : 'Gemini 3 PRO'),
         timestamp: Date.now()
       }));
 
@@ -74,14 +148,77 @@ export const CreationPanel: React.FC<Props> = ({ preset, onSuccess }) => {
             <p className="text-sm text-gray-400">{preset.description}</p>
           </div>
         </div>
+
+        {/* Clear Button */}
+        {(Object.keys(formData).length > 0 || uploadedFiles.length > 0) && (
+          <button
+            onClick={handleClearForm}
+            type="button"
+            className="text-xs text-gray-500 hover:text-red-400 transition-colors flex items-center gap-1"
+          >
+            <Sparkles size={12} className="rotate-45" />
+            入力をクリア
+          </button>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {preset.fields.map((field) => (
-          <div key={field.key}>
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-              {field.label}
-            </label>
+          <div key={field.key} className="relative">
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                {field.label}
+              </label>
+
+              {/* History Button for Textarea */}
+              {field.type === 'textarea' && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setActiveHistoryField(activeHistoryField === field.key ? null : field.key)}
+                    className={`text-xs flex items-center gap-1 transition-colors ${activeHistoryField === field.key ? 'text-blue-400' : 'text-gray-500 hover:text-gray-300'}`}
+                    title="履歴から入力"
+                  >
+                    <Clock size={12} />
+                    <span>履歴</span>
+                  </button>
+
+                  {/* History Dropdown */}
+                  {activeHistoryField === field.key && (
+                    <div className="absolute right-0 top-full mt-2 w-64 max-h-60 overflow-y-auto bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-20">
+                      <div className="p-2 sticky top-0 bg-gray-900 border-b border-gray-800 flex justify-between items-center">
+                        <span className="text-xs font-medium text-gray-400">最近の入力 (最大10件)</span>
+                        <button onClick={() => setActiveHistoryField(null)} className="text-gray-500 hover:text-white">
+                          <X size={12} />
+                        </button>
+                      </div>
+                      {inputHistory[field.key]?.length > 0 ? (
+                        <ul className="py-1">
+                          {inputHistory[field.key].map((item, idx) => (
+                            <li key={idx}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleInputChange(field.key, item);
+                                  setActiveHistoryField(null);
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 hover:text-white truncate border-b border-gray-800/50 last:border-0"
+                                title={item}
+                              >
+                                {item}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div className="p-4 text-center text-xs text-gray-600">履歴はありません</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {field.type === 'select' ? (
               <select
                 className="w-full bg-gray-950 border border-gray-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
@@ -125,6 +262,32 @@ export const CreationPanel: React.FC<Props> = ({ preset, onSuccess }) => {
                 <span className="text-xs text-blue-400 font-mono">{uploadedFiles.length}/14</span>
               )}
             </div>
+
+            {/* Image Grid Preview */}
+            {uploadedFiles.length > 0 && (
+              <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 mb-3">
+                {uploadedFiles.map((f, i) => (
+                  <div key={i} className="relative aspect-square group">
+                    <img
+                      src={previewUrls[i]}
+                      alt={`Ref ${i}`}
+                      className="w-full h-full object-cover rounded-lg border border-gray-700"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeFile(i)}
+                      className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X size={12} />
+                    </button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[8px] text-white truncate px-1 py-0.5 rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                      {f.name}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="relative">
               <input
                 type="file"
@@ -142,35 +305,26 @@ export const CreationPanel: React.FC<Props> = ({ preset, onSuccess }) => {
               />
               <Upload className="absolute right-3 top-2 text-gray-600 pointer-events-none" size={18} />
             </div>
-            {uploadedFiles.length > 0 && (
-              <div className="mt-2 flex gap-2 overflow-x-auto pb-2">
-                {uploadedFiles.map((f, i) => (
-                   <div key={i} className="text-xs bg-gray-800 px-2 py-1 rounded text-gray-300 whitespace-nowrap border border-gray-700">
-                     {f.name}
-                   </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
-        
+
         {/* Economy Mode Toggle - Only for Gemini presets */}
         {isGemini && (
           <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
             <div className="flex items-center gap-2">
-               {useEconomy ? <Zap className="text-yellow-400" size={18} /> : <Sparkles className="text-purple-400" size={18} />}
-               <div className="flex flex-col">
-                 <span className="text-sm font-medium text-white">
-                    {useEconomy ? 'エコノミー (Gemini 2.5)' : 'プロフェッショナル (Gemini 3)'}
-                 </span>
-                 <span className="text-xs text-gray-400">
-                    {useEconomy ? '高速・低コスト・標準画質' : '高画質(4K)・高推論・検索機能'}
-                 </span>
-               </div>
+              {useEconomy ? <Zap className="text-yellow-400" size={18} /> : <Sparkles className="text-purple-400" size={18} />}
+              <div className="flex flex-col">
+                <span className="text-sm font-medium text-white">
+                  {useEconomy ? 'エコノミー (Gemini 2.5)' : 'プロフェッショナル (Gemini 3 PRO)'}
+                </span>
+                <span className="text-xs text-gray-400">
+                  {useEconomy ? '高速・低コスト・標準画質' : '高画質(4K)・高推論・検索機能'}
+                </span>
+              </div>
             </div>
             <button
               type="button"
-              onClick={() => setUseEconomy(!useEconomy)}
+              onClick={() => onEconomyChange(!useEconomy)}
               className={`
                 relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none
                 ${useEconomy ? 'bg-yellow-600/50' : 'bg-purple-600'}
@@ -192,8 +346,8 @@ export const CreationPanel: React.FC<Props> = ({ preset, onSuccess }) => {
           className={`
             w-full py-4 rounded-lg font-semibold text-white shadow-lg flex items-center justify-center gap-2
             transition-all duration-300 transform hover:-translate-y-0.5
-            ${isGenerating 
-              ? 'bg-gray-800 cursor-not-allowed opacity-70' 
+            ${isGenerating
+              ? 'bg-gray-800 cursor-not-allowed opacity-70'
               : useEconomy
                 ? 'bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500 shadow-yellow-900/20'
                 : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-900/20'
@@ -213,6 +367,6 @@ export const CreationPanel: React.FC<Props> = ({ preset, onSuccess }) => {
           )}
         </button>
       </form>
-    </div>
+    </div >
   );
 };
