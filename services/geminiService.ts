@@ -140,7 +140,7 @@ export const generateContent = async (
       if (selectedModel === ModelType.GEMINI_3_PRO) {
         config.imageConfig = {
           aspectRatio: targetAspectRatio as any,
-          imageSize: '4K' // Only supported in 3 Pro
+          // imageSize: '4K' // Only supported in 3 Pro
         };
         config.tools = [{ googleSearch: {} }]; // Only supported in 3 Pro
       } else {
@@ -246,8 +246,9 @@ export const refineContent = async (
     const config: any = {};
 
     if (model === ModelType.GEMINI_3_PRO) {
-      config.imageConfig = { imageSize: '4K' };
-      config.tools = [{ googleSearch: {} }];
+      // Gemini 3 Pro for refinement/editing might conflict with search tools or specific image configs
+      // config.imageConfig = { imageSize: '4K' };
+      // config.tools = [{ googleSearch: {} }];
     }
     // Gemini 2.5 Flash Image doesn't support explicit imageSize for refinement or search tools usually
 

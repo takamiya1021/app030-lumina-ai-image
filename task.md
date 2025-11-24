@@ -1,14 +1,4 @@
-# Task: Implement PWA Support
+# Task: Remove 4K Resolution Setting
 
-- [x] Create Implementation Plan
-- [x] Generate App Icon (High Resolution)
-- [x] Create Icon Assets
-    - [x] Android (192x192)
-    - [x] Android (512x512)
-    - [x] iPhone (180x180 apple-touch-icon)
-    - [x] Favicon (svg/ico)
-- [x] Install `vite-plugin-pwa`
-- [x] Configure `vite.config.ts` for PWA
-- [x] Create/Configure `manifest.json` (via Vite config)
-- [x] Update `index.html` with meta tags
-- [x] Verify PWA functionality
+- [x] Remove `imageSize: '4K'` from `generateContent` in `services/geminiService.ts` <!-- id: 0 -->
+- [x] Verify the change <!-- id: 1 -->
