@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PresetConfig, GeneratedImage } from '../types';
 import { generateContent } from '../services/geminiService';
-import { Loader2, Upload, ArrowRight, Wand2, Zap, Sparkles, History, X, Clock } from 'lucide-react';
+import { Loader2, Upload, ArrowRight, Wand2, Zap, Sparkles, History, X, Clock, Image as ImageIcon } from 'lucide-react';
 
 interface Props {
   preset: PresetConfig;
@@ -14,11 +14,34 @@ interface Props {
   onUploadedFilesChange: (files: File[]) => void;
 }
 
+type EngineType = 'gemini' | 'imagen';
+
 export const CreationPanel: React.FC<Props> = ({ preset, onSuccess, useEconomy, onEconomyChange, formData, onFormDataChange, uploadedFiles, onUploadedFilesChange }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [activeHistoryField, setActiveHistoryField] = useState<string | null>(null);
   const [inputHistory, setInputHistory] = useState<Record<string, string[]>>({});
+  const [selectedEngine, setSelectedEngine] = useState<EngineType>('gemini');
+
+  // Sync selected engine with formData for Custom preset
+  useEffect(() => {
+    if (preset.id === 'custom') {
+      if (selectedEngine === 'imagen') {
+        onFormDataChange({ ...formData, model: 'Imagen 4' });
+      } else {
+        // For Gemini, we don't strictly need to set 'model' in formData as the service defaults to Gemini 3/2.5 based on economy flag
+        // But let's clear it or set it to a Gemini identifier to be safe and consistent with service logic
+        // Service logic: if formData['model'] includes '2.5' -> Flash, '3.0' -> Pro. 
+        // If we just want to rely on Economy toggle, we can remove 'model' from formData or set it based on economy.
+        // Let's set it based on economy state to be explicit, OR just clear it so service uses default logic.
+        // Actually, service logic prioritizes formData['model'] if present. 
+        // So if we switch to Gemini, we should probably clear 'model' so the Economy toggle takes precedence in service.
+        const newFormData = { ...formData };
+        delete newFormData['model'];
+        onFormDataChange(newFormData);
+      }
+    }
+  }, [selectedEngine, preset.id]);
 
   // Load history from local storage on mount
   useEffect(() => {
@@ -67,17 +90,35 @@ export const CreationPanel: React.FC<Props> = ({ preset, onSuccess, useEconomy, 
     }
   };
 
+  const getSelectedModel = () => {
+    if (preset.id === 'custom') {
+      if (selectedEngine === 'imagen') return 'Imagen 4';
+      // If engine is Gemini, return based on economy mode
+      return useEconomy ? 'Gemini 2.5 Flash' : 'Gemini 3.0 Pro';
+    }
+    return preset.model;
+  };
+
+  const isGeminiModel = (modelName: string) => {
+    return modelName.toLowerCase().includes('gemini');
+  };
+
+  const isGemini = isGeminiModel(getSelectedModel());
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
       const totalFiles = [...uploadedFiles, ...files];
 
-      if (totalFiles.length > 14) {
-        alert("一度にアップロードできる参照画像は最大14枚です。");
-        // Don't add if it exceeds limit, or add up to limit?
-        // Let's just take the first 14 of the new batch combined with old?
-        // Simpler: just replace or append up to 14.
-        const remainingSlots = 14 - uploadedFiles.length;
+      const currentModel = getSelectedModel();
+      // Limit is 3 for Gemini 2.5 Flash (either via Economy mode or explicit selection in Custom)
+      // Otherwise 14 for Gemini 3 Pro
+      const isGemini25 = useEconomy || currentModel.includes('2.5');
+      const limit = isGemini25 ? 3 : 14;
+
+      if (totalFiles.length > limit) {
+        alert(`一度にアップロードできる参照画像は最大${limit}枚です。`);
+        const remainingSlots = limit - uploadedFiles.length;
         if (remainingSlots > 0) {
           onUploadedFilesChange([...uploadedFiles, ...files.slice(0, remainingSlots)]);
         }
@@ -135,7 +176,7 @@ export const CreationPanel: React.FC<Props> = ({ preset, onSuccess, useEconomy, 
     }
   };
 
-  const isGemini = preset.model.includes('gemini');
+
 
   return (
     <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6 backdrop-blur-sm">
@@ -162,6 +203,34 @@ export const CreationPanel: React.FC<Props> = ({ preset, onSuccess, useEconomy, 
           </button>
         )}
       </div>
+
+      {/* Custom Mode Engine Selector */}
+      {preset.id === 'custom' && (
+        <div className="mb-6 bg-gray-950 p-1 rounded-lg flex border border-gray-800">
+          <button
+            type="button"
+            onClick={() => setSelectedEngine('gemini')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-2 ${selectedEngine === 'gemini'
+                ? 'bg-gray-800 text-white shadow-sm'
+                : 'text-gray-400 hover:text-gray-200'
+              }`}
+          >
+            <Sparkles size={16} className={selectedEngine === 'gemini' ? 'text-purple-400' : ''} />
+            Gemini (Creative)
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedEngine('imagen')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-2 ${selectedEngine === 'imagen'
+                ? 'bg-gray-800 text-white shadow-sm'
+                : 'text-gray-400 hover:text-gray-200'
+              }`}
+          >
+            <ImageIcon size={16} className={selectedEngine === 'imagen' ? 'text-blue-400' : ''} />
+            Imagen 4 (Realistic)
+          </button>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {preset.fields.map((field) => (
@@ -257,10 +326,10 @@ export const CreationPanel: React.FC<Props> = ({ preset, onSuccess, useEconomy, 
           <div>
             <div className="flex justify-between items-end mb-2">
               <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                参照画像 (任意 - 最大14枚)
+                参照画像 (任意 - 最大{(useEconomy || getSelectedModel().includes('2.5')) ? 3 : 14}枚)
               </label>
               {uploadedFiles.length > 0 && (
-                <span className="text-xs text-blue-400 font-mono">{uploadedFiles.length}/14</span>
+                <span className="text-xs text-blue-400 font-mono">{uploadedFiles.length}/{(useEconomy || getSelectedModel().includes('2.5')) ? 3 : 14}</span>
               )}
             </div>
 

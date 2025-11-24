@@ -1,19 +1,29 @@
-# PWA Implementation Walkthrough
+# Custom Mode UI Refinement Walkthrough
 
-I have successfully implemented Progressive Web App (PWA) support for Lumina - AI Image Studio.
+This document outlines the UI changes made to the Custom Mode model selection.
 
 ## Changes
-- **Configuration**: Updated `vite.config.ts` to include `VitePWA` plugin with manifest details.
-- **Assets**: Generated and added app icons (192x192 and 512x512) to `public/`.
-- **HTML**: Added PWA meta tags to `index.html`.
 
-## Verification
-- Ran `npm run build` and confirmed generation of:
-    - `dist/manifest.webmanifest`
-    - `dist/sw.js`
+### 1. Model Selection UI
+- **Old**: Dropdown list in the form.
+- **New**: **Segmented Control** (Toggle Buttons) at the top of the Custom panel.
+- **Options**:
+    - **Gemini (Creative)**: Uses Gemini 3.0 Pro or 2.5 Flash (based on Economy toggle).
+    - **Imagen 4 (Realistic)**: Uses Imagen 4 model.
 
-## Generated Icon
-![Lumina App Icon](/home/ustar-wsl-2-2/.gemini/antigravity/brain/bdfca90e-8043-46b1-97c5-055186312461/lumina_icon_1763901619069.png)
+### 2. Economy Toggle Logic
+- The "Economy Mode" toggle is now **hidden** when **Imagen 4** is selected, as it only applies to Gemini models.
+- When **Gemini** is selected, the toggle appears and functions as before (switching between Pro and Flash).
 
-## Next Steps
-- Deploy the application to a static host (e.g., Vercel, Netlify) to test PWA installation on real devices.
+## Verification Steps
+
+1. Select **Custom** preset.
+2. Verify the "Model" dropdown is gone from the form fields.
+3. Verify the new toggle buttons appear at the top: "Gemini (Creative)" and "Imagen 4 (Realistic)".
+4. Click **Imagen 4**:
+    - Verify "Economy Mode" toggle disappears.
+    - Generate an image -> Should use Imagen 4.
+5. Click **Gemini**:
+    - Verify "Economy Mode" toggle appears.
+    - Toggle Economy ON -> Generate -> Should use Gemini 2.5 Flash.
+    - Toggle Economy OFF -> Generate -> Should use Gemini 3.0 Pro.
