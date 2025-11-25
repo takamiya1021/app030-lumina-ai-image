@@ -6,9 +6,10 @@ import { History, Clock } from 'lucide-react';
 interface Props {
     onSelect: (image: GeneratedImage) => void;
     refreshTrigger: number; // Prop to trigger refresh when new image is generated
+    customFetcher?: () => Promise<GeneratedImage[]>; // Optional custom fetcher
 }
 
-export const ImageHistorySlider: React.FC<Props> = ({ onSelect, refreshTrigger }) => {
+export const ImageHistorySlider: React.FC<Props> = ({ onSelect, refreshTrigger, customFetcher }) => {
     const [images, setImages] = useState<GeneratedImage[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -18,7 +19,8 @@ export const ImageHistorySlider: React.FC<Props> = ({ onSelect, refreshTrigger }
 
     const loadHistory = async () => {
         try {
-            const history = await getHistory();
+            const fetcher = customFetcher || getHistory;
+            const history = await fetcher();
             setImages(history);
         } catch (error) {
             console.error("Failed to load history", error);

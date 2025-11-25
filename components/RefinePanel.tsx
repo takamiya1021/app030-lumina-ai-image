@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, GeneratedImage } from '../types';
 import { refineContent } from '../services/geminiService';
-import { Send, Image as ImageIcon, Loader2, Bot, User, Zap, Sparkles, X } from 'lucide-react';
+import { saveRefinedImageToHistory, getRefinedHistory } from '../services/storageService';
+import { Send, Image as ImageIcon, Loader2, Bot, User, Zap, Sparkles, X, History } from 'lucide-react';
+import { ImageHistorySlider } from './ImageHistorySlider';
 
 interface Props {
   initialImage?: GeneratedImage;
@@ -15,6 +17,9 @@ export const RefinePanel: React.FC<Props> = ({ initialImage }) => {
   const [useEconomy, setUseEconomy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [refinedHistory, setRefinedHistory] = useState<GeneratedImage[]>([]);
+  const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
 
   useEffect(() => {
     if (initialImage) {
@@ -55,9 +60,10 @@ export const RefinePanel: React.FC<Props> = ({ initialImage }) => {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      if (files.length > 14) {
-        alert("一度にアップロードできる参照画像は最大14枚です。最初の14枚のみが選択されました。");
-        setUploadedFiles(files.slice(0, 14));
+      const maxImages = useEconomy ? 3 : 14;
+      if (files.length > maxImages) {
+        alert(`一度にアップロードできる参照画像は最大${maxImages}枚です。最初の${maxImages}枚のみが選択されました。`);
+        setUploadedFiles(files.slice(0, maxImages));
       } else {
         setUploadedFiles(files);
       }
@@ -83,10 +89,17 @@ export const RefinePanel: React.FC<Props> = ({ initialImage }) => {
       const newImages: GeneratedImage[] = result.images.map(url => ({
         id: Math.random().toString(36).substr(2, 9),
         url,
-        prompt: "Refinement",
+        prompt: input || "Refinement",
         model: useEconomy ? "Gemini 2.5 Flash" : "Gemini 3 PRO",
+        parts: result.parts,
         timestamp: Date.now()
       }));
+
+      // Auto-save to refined history
+      for (const img of newImages) {
+        await saveRefinedImageToHistory(img);
+      }
+      setHistoryRefreshTrigger(prev => prev + 1);
 
       setHistory(prev => [...prev, {
         role: 'model',
@@ -141,17 +154,27 @@ export const RefinePanel: React.FC<Props> = ({ initialImage }) => {
           編集 (Refine Mode)
         </h3>
 
-        <button
-          onClick={() => setUseEconomy(!useEconomy)}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${useEconomy
-            ? 'bg-yellow-900/20 border-yellow-700 text-yellow-300 hover:bg-yellow-900/40'
-            : 'bg-purple-900/20 border-purple-700 text-purple-300 hover:bg-purple-900/40'
-            }`}
-          title={useEconomy ? "現在: エコノミーモード (Gemini 2.5 Flash) - 高速・低コスト" : "現在: プロモード (Gemini 3 PRO) - 4K・高画質"}
-        >
-          {useEconomy ? <Zap size={14} /> : <Sparkles size={14} />}
-          <span className="hidden sm:inline">{useEconomy ? 'Gemini 2.5 (Eco)' : 'Gemini 3 PRO'}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowHistory(true)}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-700 bg-gray-800/50 text-gray-300 hover:bg-gray-700 transition-all"
+            title="編集履歴を表示"
+          >
+            <History size={14} />
+            <span className="hidden sm:inline">履歴</span>
+          </button>
+          <button
+            onClick={() => setUseEconomy(!useEconomy)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${useEconomy
+              ? 'bg-yellow-900/20 border-yellow-700 text-yellow-300 hover:bg-yellow-900/40'
+              : 'bg-purple-900/20 border-purple-700 text-purple-300 hover:bg-purple-900/40'
+              }`}
+            title={useEconomy ? "現在: エコノミーモード (Gemini 2.5 Flash) - 高速・低コスト" : "現在: プロモード (Gemini 3 PRO) - 高画質"}
+          >
+            {useEconomy ? <Zap size={14} /> : <Sparkles size={14} />}
+            <span className="hidden sm:inline">{useEconomy ? 'Gemini 2.5 (Eco)' : 'Gemini 3 PRO'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Chat Area */}
@@ -238,7 +261,7 @@ export const RefinePanel: React.FC<Props> = ({ initialImage }) => {
           <div className="mb-2">
             <div className="flex items-center justify-between mb-1 px-1">
               <span className="text-xs text-gray-500 font-mono">
-                {uploadedFiles.length}/14
+                {uploadedFiles.length}/{useEconomy ? 3 : 14}
               </span>
             </div>
             <div className="flex gap-2 overflow-x-auto pb-2">
@@ -279,7 +302,7 @@ export const RefinePanel: React.FC<Props> = ({ initialImage }) => {
             <div className="absolute right-2 bottom-2">
               <label
                 className="cursor-pointer p-1.5 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white transition-colors block"
-                title="画像を追加 (最大14枚)"
+                title={`画像を追加 (最大${useEconomy ? 3 : 14}枚)`}
               >
                 <input
                   type="file"
@@ -301,6 +324,42 @@ export const RefinePanel: React.FC<Props> = ({ initialImage }) => {
           </button>
         </div>
       </div>
+
+      {/* Refined History Modal */}
+      {showHistory && (
+        <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="relative w-full max-w-5xl bg-gray-900 rounded-2xl border border-gray-800 shadow-2xl overflow-hidden">
+            <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+              <h3 className="font-medium text-white flex items-center gap-2">
+                <History size={18} className="text-purple-400" />
+                編集履歴（最大20件）
+              </h3>
+              <button
+                onClick={() => setShowHistory(false)}
+                className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-gray-800"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6">
+              <ImageHistorySlider
+                refreshTrigger={historyRefreshTrigger}
+                onSelect={(img) => {
+                  setHistory([{
+                    role: 'model',
+                    timestamp: Date.now(),
+                    images: [img],
+                    parts: img.parts,
+                    text: "履歴から読み込んだ画像です。どのように調整しますか？"
+                  }]);
+                  setShowHistory(false);
+                }}
+                customFetcher={getRefinedHistory}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

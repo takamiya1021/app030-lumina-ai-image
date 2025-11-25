@@ -181,10 +181,19 @@ export const generateContent = async (
 
     } catch (error: any) {
       console.error("Gemini Error:", error);
-      if (error.toString().includes("SAFETY")) {
-        throw new Error("安全ポリシーにより生成がブロックされました。");
+
+      // エラーの種類を判別して括弧書きで原因を追加
+      let errorReason = "";
+
+      if (error.message?.includes("SAFETY") || error.message?.includes("BLOCKED") || error.toString().includes("SAFETY")) {
+        errorReason = "（コンテンツポリシー違反）";
+      } else if (error.status === 503 || error.message?.includes("503") || error.message?.includes("overloaded")) {
+        errorReason = "（Google側の問題、時間を置いて再試行）";
+      } else if (error.status === 400 || error.message?.includes("400")) {
+        errorReason = "（リクエストの問題）";
       }
-      throw error;
+
+      throw new Error(`生成に失敗しました。もう一度お試しください${errorReason}`);
     }
   }
 };
@@ -321,9 +330,21 @@ export const refineContent = async (
       text: generatedText,
       parts: response.candidates?.[0]?.content?.parts
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Refinement Error:", error);
-    throw error;
+
+    // エラーの種類を判別して括弧書きで原因を追加
+    let errorReason = "";
+
+    if (error.message?.includes("SAFETY") || error.message?.includes("BLOCKED") || error.toString().includes("SAFETY")) {
+      errorReason = "（コンテンツポリシー違反）";
+    } else if (error.status === 503 || error.message?.includes("503") || error.message?.includes("overloaded")) {
+      errorReason = "（Google側の問題、時間を置いて再試行）";
+    } else if (error.status === 400 || error.message?.includes("400")) {
+      errorReason = "（リクエストの問題）";
+    }
+
+    throw new Error(`リクエストの処理中にエラーが発生しました。もう一度お試しください${errorReason}`);
   }
 }
 
