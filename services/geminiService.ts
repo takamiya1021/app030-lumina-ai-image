@@ -19,14 +19,24 @@ interface GenerationResult {
   parts?: any[];    // raw parts from API response (for thought_signature)
 }
 
+// Helper for timeout
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number = 60000): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`Timeout: Request took longer than ${timeoutMs}ms`)), timeoutMs)
+    )
+  ]);
+};
+
 // Translate Japanese prompt to English for Imagen 4
 const translateToEnglish = async (text: string): Promise<string> => {
   try {
     const ai = getClient();
-    const response = await ai.models.generateContent({
+    const response = await withTimeout(ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: `Translate the following Japanese text to English for an image generation prompt. Only return the English translation, nothing else.\n\nText: ${text}`,
-    });
+    }));
     return response.text || text;
   } catch (e) {
     console.warn("Translation failed, using original text:", e);
@@ -74,7 +84,7 @@ export const generateContent = async (
       const englishPrompt = await translateToEnglish(rawPrompt);
       console.log(`Translated prompt for Imagen: ${englishPrompt}`);
 
-      const response = await ai.models.generateImages({
+      const response = await withTimeout(ai.models.generateImages({
         model: ModelType.IMAGEN_4,
         prompt: englishPrompt,
         config: {
@@ -82,7 +92,7 @@ export const generateContent = async (
           aspectRatio: targetAspectRatio as any,
           outputMimeType: 'image/png',
         },
-      });
+      }));
 
       const images = response.generatedImages?.map(img =>
         `data:image/png;base64,${img.image.imageBytes}`
@@ -93,6 +103,9 @@ export const generateContent = async (
       console.error("Imagen Error:", error);
       if (error.message && error.message.includes("safety")) {
         throw new Error(`Safety Filterによりブロックされました: ${error.message}`);
+      }
+      if (error.message && error.message.includes("Timeout")) {
+        throw new Error("生成がタイムアウトしました。もう一度お試しください。");
       }
       throw error;
     }
@@ -151,14 +164,14 @@ export const generateContent = async (
         };
       }
 
-      const response = await ai.models.generateContent({
+      const response = await withTimeout(ai.models.generateContent({
         model: selectedModel,
         contents: {
           role: 'user',
           parts: parts
         },
         config: config
-      });
+      }));
 
       const generatedImages: string[] = [];
       let generatedText = "";
@@ -191,6 +204,8 @@ export const generateContent = async (
         errorReason = "（Google側の問題、時間を置いて再試行）";
       } else if (error.status === 400 || error.message?.includes("400")) {
         errorReason = "（リクエストの問題）";
+      } else if (error.message?.includes("Timeout")) {
+        errorReason = "（タイムアウト）";
       }
 
       throw new Error(`生成に失敗しました。もう一度お試しください${errorReason}`);
@@ -212,40 +227,100 @@ export const refineContent = async (
   // Process history to build contents
   const contents: any[] = [];
 
+  // Track the most recent generated image to attach to the current request
+  let lastGeneratedImagePart: any = null;
+
   history.forEach(h => {
-    // For Gemini 3 Pro, if a model response lacks parts (legacy data), 
-    // we cannot send it as a model turn because it misses thought_signature.
-    // Instead, we treat its images as input for the CURRENT request.
-    if (model === ModelType.GEMINI_3_PRO && h.role === 'model' && (!h.parts || !Array.isArray(h.parts))) {
-      if (h.images && h.images.length > 0) {
-        h.images.forEach((img: GeneratedImage) => {
+    // For Gemini 3 Pro, we need to be careful about payload size.
+    // Sending full Base64 history often causes 500/400 errors.
+    // Strategy:
+    // 1. Keep text parts (thought_signature) to maintain reasoning context.
+    // 2. Strip inlineData (images) from HISTORY to save space.
+    // 3. Find the *latest* generated image and attach it to the CURRENT request.
+
+    if (model === ModelType.GEMINI_3_PRO) {
+      if (h.role === 'model') {
+        // Check for images in this turn to track the latest one
+        if (h.parts && Array.isArray(h.parts)) {
+          const imagePart = h.parts.find((p: any) => p.inlineData);
+          if (imagePart) {
+            lastGeneratedImagePart = imagePart;
+          }
+
+          // Filter out images from history, keep only text
+          const textParts = h.parts.filter((p: any) => !p.inlineData);
+
+          // Only add to contents if there are text parts left (e.g. thoughts)
+          if (textParts.length > 0) {
+            contents.push({
+              role: h.role,
+              parts: textParts
+            });
+          }
+          // If a model turn had ONLY images and we stripped them, we might have an empty turn.
+          // Gemini doesn't like empty turns. If it was pure image generation without thought,
+          // we might skip it in history, BUT we must ensure alternating roles.
+          // For now, assuming 3 Pro always has some thought or we insert a placeholder if needed?
+          // Actually, if we skip a model turn, we might have User-User.
+          // Let's insert a placeholder if empty.
+          else {
+            contents.push({
+              role: h.role,
+              parts: [{ text: "(Image generated)" }]
+            });
+          }
+        }
+        // Handle legacy format or missing parts
+        else if (h.images && h.images.length > 0) {
+          // It's a model turn with images but no parts structure (legacy).
+          // Just track the image.
+          const img = h.images[h.images.length - 1]; // Use last image of the batch
           const match = img.url.match(/^data:(.+?);base64,(.+)$/);
           if (match) {
-            // Add to currentParts (User's turn) instead of history
-            currentParts.push({
+            lastGeneratedImagePart = {
               inlineData: {
                 mimeType: match[1],
                 data: match[2]
               }
-            });
+            };
           }
+          contents.push({
+            role: h.role,
+            parts: [{ text: h.text || "(Image generated)" }]
+          });
+        } else {
+          // Just text
+          contents.push({
+            role: h.role,
+            parts: [{ text: h.text || "..." }]
+          });
+        }
+      } else {
+        // User role - usually just text in history, images are heavy.
+        // Strip images from user history too? Usually user sends text + ref image.
+        // Ref images in history might be needed if they were the *source* of the edit.
+        // But for "Edit this image", the context is the Model's last image.
+        // Let's keep user text, strip user images from history to be safe.
+        const parts: any[] = [];
+        if (h.parts && Array.isArray(h.parts)) {
+          h.parts.forEach((p: any) => {
+            if (p.text) parts.push(p);
+          });
+        } else if (h.text) {
+          parts.push({ text: h.text });
+        }
+
+        if (parts.length === 0) parts.push({ text: "..." });
+
+        contents.push({
+          role: h.role,
+          parts: parts
         });
       }
-      // Skip adding this to contents as a history item
       return;
     }
 
-    // Normal processing for valid history items
-    // Only use raw parts for Gemini 3 Pro to preserve thought_signature
-    // For Gemini 2.5 Flash, we use the reconstruction method below which is proven to work
-    if (model === ModelType.GEMINI_3_PRO && h.parts && Array.isArray(h.parts)) {
-      contents.push({
-        role: h.role,
-        parts: h.parts
-      });
-      return;
-    }
-
+    // --- Gemini 2.5 Flash Logic (Existing working logic) ---
     // Fallback reconstruction for User items or Non-Gemini-3-Pro Model items
     const parts: any[] = [];
     if (h.text) {
@@ -272,6 +347,15 @@ export const refineContent = async (
       parts: parts
     });
   });
+
+  // --- Post-Processing for Gemini 3 Pro ---
+  if (model === ModelType.GEMINI_3_PRO) {
+    // 1. Attach the LAST generated image to the CURRENT request
+    // This tells the model "Here is the image I want you to edit"
+    if (lastGeneratedImagePart) {
+      currentParts.push(lastGeneratedImagePart);
+    }
+  }
 
   // Add uploaded reference images to current parts
   const maxImages = 14;
@@ -303,14 +387,19 @@ export const refineContent = async (
       // Gemini 3 Pro for refinement/editing might conflict with search tools or specific image configs
       // config.imageConfig = { imageSize: '4K' };
       // config.tools = [{ googleSearch: {} }];
+
+      // IMPORTANT: Aspect Ratio is required even for editing? 
+      // Usually editing preserves aspect ratio, but API might expect it.
+      // Let's try NOT sending it first (as it might resize), but if it fails we might need it.
+      // However, the previous error was 500, likely payload.
     }
     // Gemini 2.5 Flash Image doesn't support explicit imageSize for refinement or search tools usually
 
-    const response = await ai.models.generateContent({
+    const response = await withTimeout(ai.models.generateContent({
       model: model,
       contents: contents,
       config: config
-    });
+    }));
 
     const generatedImages: string[] = [];
     let generatedText = "";
@@ -342,6 +431,8 @@ export const refineContent = async (
       errorReason = "（Google側の問題、時間を置いて再試行）";
     } else if (error.status === 400 || error.message?.includes("400")) {
       errorReason = "（リクエストの問題）";
+    } else if (error.message?.includes("Timeout")) {
+      errorReason = "（タイムアウト）";
     }
 
     throw new Error(`リクエストの処理中にエラーが発生しました。もう一度お試しください${errorReason}`);
