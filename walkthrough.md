@@ -1,30 +1,26 @@
-# Walkthrough - Remove 4K Resolution Setting
+# Walkthrough - Gemini Image Generation Fixes
 
-I have removed the `imageSize: '4K'` setting from the Gemini 3 Pro configuration in both the image generation and refinement processes.
+## 1. Gemini 2.5 Flash 500 Error
 
-## Changes
+**Issue**: 500 Internal Error when generating images in Economy Mode.
+**Root Cause**: Incorrect model name in `types.ts`.
+**Fix**:
+- Changed `ModelType.GEMINI_2_5_FLASH` from `gemini-2.0-flash-exp` to `gemini-2.5-flash-image`.
+- Verified that `contents` structure (single object vs array) was not the primary cause, though array is the official REST API format.
 
-### `services/geminiService.ts`
+## 2. Gemini 3 Pro Refinement Error
 
-I modified `generateContent` and `refineContent` to comment out the `imageSize: '4K'` setting. This ensures that the model uses its default resolution, avoiding potential errors and unnecessary constraints.
+**Issue**: 400 Bad Request (`Text part is missing a thought_signature`) when refining images.
+**Root Cause**: Gemini 3 Pro requires a `thought_signature` from the previous turn to maintain conversational context. This signature was lost because we were only saving the image URL and text, not the raw API response parts.
 
-```typescript
-// In generateContent
-        config.imageConfig = {
-          aspectRatio: targetAspectRatio as any,
-          // imageSize: '4K' // Only supported in 3 Pro
-        };
+**Fix**:
+### Data Structure Updates
+- Added `parts?: any[]` to `GeneratedImage` and `ChatMessage` interfaces in `types.ts`.
 
-// In refineContent
-    if (model === ModelType.GEMINI_3_PRO) {
-      // Gemini 3 Pro for refinement/editing might conflict with search tools or specific image configs
-      // config.imageConfig = { imageSize: '4K' };
-      // config.tools = [{ googleSearch: {} }];
-    }
-```
+### Persistence Logic
+- **Creation**: `geminiService.ts` now returns raw `parts` from the API. `CreationPanel.tsx` saves these parts into the `GeneratedImage` object.
+- **Refinement**: `RefinePanel.tsx` uses the saved `parts` when initializing the chat history.
 
-## Verification Results
-
-### Manual Verification
-- [x] **Create Mode**: Verified that generating an image with Gemini 3 Pro (e.g., Custom preset) no longer sends the `imageSize: '4K'` parameter.
-- [x] **Refine Mode**: Verified that editing an image with Gemini 3 Pro no longer sends the `imageSize: '4K'` parameter.
+### Legacy Support (Fallback)
+- In `geminiService.ts`, added logic to handle history items that lack `parts` (legacy images).
+- **Strategy**: If `parts` are missing, the item is NOT sent as a `model` history turn. Instead, its images are extracted and sent as `user` input attachments for the current turn. This avoids the "missing signature" error while allowing re-editing of old images.

@@ -22,6 +22,7 @@ export const RefinePanel: React.FC<Props> = ({ initialImage }) => {
         role: 'model',
         timestamp: Date.now(),
         images: [initialImage],
+        parts: initialImage.parts, // Use raw parts from initial image (contains thought_signature)
         text: "生成された画像です。どのように調整しますか？ オブジェクトの追加、色の変更、スタイルの調整などを指示できます。"
       }]);
     }
@@ -91,6 +92,7 @@ export const RefinePanel: React.FC<Props> = ({ initialImage }) => {
         role: 'model',
         text: result.text || "画像を生成・調整しました。",
         images: newImages,
+        parts: result.parts,
         timestamp: Date.now()
       }]);
 

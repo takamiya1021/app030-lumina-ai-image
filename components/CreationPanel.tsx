@@ -164,7 +164,10 @@ export const CreationPanel: React.FC<Props> = ({ preset, onSuccess, useEconomy, 
         id: Math.random().toString(36).substr(2, 9),
         url,
         prompt: preset.name,
-        model: preset.model.includes('imagen') ? 'Imagen 4' : (useEconomy ? 'Gemini 2.5 Flash' : 'Gemini 3 PRO'),
+        model: (preset.model.includes('imagen') || (preset.id === 'custom' && formData['model'] === 'Imagen 4'))
+          ? 'Imagen 4'
+          : (useEconomy ? 'Gemini 2.5 Flash' : 'Gemini 3 PRO'),
+        parts: result.parts, // Save raw parts for Gemini 3 Pro thought_signature
         timestamp: Date.now()
       }));
 
@@ -211,8 +214,8 @@ export const CreationPanel: React.FC<Props> = ({ preset, onSuccess, useEconomy, 
             type="button"
             onClick={() => setSelectedEngine('gemini')}
             className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-2 ${selectedEngine === 'gemini'
-                ? 'bg-gray-800 text-white shadow-sm'
-                : 'text-gray-400 hover:text-gray-200'
+              ? 'bg-gray-800 text-white shadow-sm'
+              : 'text-gray-400 hover:text-gray-200'
               }`}
           >
             <Sparkles size={16} className={selectedEngine === 'gemini' ? 'text-purple-400' : ''} />
@@ -222,8 +225,8 @@ export const CreationPanel: React.FC<Props> = ({ preset, onSuccess, useEconomy, 
             type="button"
             onClick={() => setSelectedEngine('imagen')}
             className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-2 ${selectedEngine === 'imagen'
-                ? 'bg-gray-800 text-white shadow-sm'
-                : 'text-gray-400 hover:text-gray-200'
+              ? 'bg-gray-800 text-white shadow-sm'
+              : 'text-gray-400 hover:text-gray-200'
               }`}
           >
             <ImageIcon size={16} className={selectedEngine === 'imagen' ? 'text-blue-400' : ''} />

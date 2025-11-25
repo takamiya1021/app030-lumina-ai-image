@@ -16,6 +16,7 @@ const getClient = () => {
 interface GenerationResult {
   images: string[]; // base64 data URLs
   text?: string;    // accompanying text (Gemini)
+  parts?: any[];    // raw parts from API response (for thought_signature)
 }
 
 // Translate Japanese prompt to English for Imagen 4
@@ -74,7 +75,7 @@ export const generateContent = async (
       console.log(`Translated prompt for Imagen: ${englishPrompt}`);
 
       const response = await ai.models.generateImages({
-        model: preset.model,
+        model: ModelType.IMAGEN_4,
         prompt: englishPrompt,
         config: {
           numberOfImages: 1,
@@ -142,7 +143,7 @@ export const generateContent = async (
           aspectRatio: targetAspectRatio as any,
           // imageSize: '4K' // Only supported in 3 Pro
         };
-        config.tools = [{ googleSearch: {} }]; // Only supported in 3 Pro
+        config.tools = [{ googleSearch: {} }];
       } else {
         // Gemini 2.5 Flash Image supports aspectRatio but NOT imageSize or tools
         config.imageConfig = {
@@ -195,17 +196,54 @@ export const refineContent = async (
   useEconomyMode: boolean = false
 ): Promise<GenerationResult> => {
   const ai = getClient();
-  const model = useEconomyMode ? ModelType.GEMINI_2_5_FLASH : ModelType.GEMINI_3_PRO;
+  let model = useEconomyMode ? ModelType.GEMINI_2_5_FLASH : ModelType.GEMINI_3_PRO;
 
-  const contents = history.map(h => {
+  const currentParts: any[] = [{ text: message }];
+
+  // Process history to build contents
+  const contents: any[] = [];
+
+  history.forEach(h => {
+    // For Gemini 3 Pro, if a model response lacks parts (legacy data), 
+    // we cannot send it as a model turn because it misses thought_signature.
+    // Instead, we treat its images as input for the CURRENT request.
+    if (model === ModelType.GEMINI_3_PRO && h.role === 'model' && (!h.parts || !Array.isArray(h.parts))) {
+      if (h.images && h.images.length > 0) {
+        h.images.forEach((img: GeneratedImage) => {
+          const match = img.url.match(/^data:(.+?);base64,(.+)$/);
+          if (match) {
+            // Add to currentParts (User's turn) instead of history
+            currentParts.push({
+              inlineData: {
+                mimeType: match[1],
+                data: match[2]
+              }
+            });
+          }
+        });
+      }
+      // Skip adding this to contents as a history item
+      return;
+    }
+
+    // Normal processing for valid history items
+    // Only use raw parts for Gemini 3 Pro to preserve thought_signature
+    // For Gemini 2.5 Flash, we use the reconstruction method below which is proven to work
+    if (model === ModelType.GEMINI_3_PRO && h.parts && Array.isArray(h.parts)) {
+      contents.push({
+        role: h.role,
+        parts: h.parts
+      });
+      return;
+    }
+
+    // Fallback reconstruction for User items or Non-Gemini-3-Pro Model items
     const parts: any[] = [];
     if (h.text) {
       parts.push({ text: h.text });
     }
     if (h.images && h.images.length > 0) {
       h.images.forEach((img: GeneratedImage) => {
-        // Extract base64 data from data URL
-        // Format: data:image/png;base64,......
         const match = img.url.match(/^data:(.+?);base64,(.+)$/);
         if (match) {
           parts.push({
@@ -217,18 +255,16 @@ export const refineContent = async (
         }
       });
     }
-    // Fallback if no text/images but role exists (shouldn't happen usually)
     if (parts.length === 0) {
       parts.push({ text: "..." });
     }
-    return {
+    contents.push({
       role: h.role,
       parts: parts
-    };
+    });
   });
 
-  const currentParts: any[] = [{ text: message }];
-
+  // Add uploaded reference images to current parts
   const maxImages = 14;
   const imagesToProcess = referenceImages.slice(0, maxImages);
 
@@ -240,7 +276,16 @@ export const refineContent = async (
     });
   }
 
-  contents.push({ role: 'user', parts: currentParts });
+  // Check if the last item in contents is a USER role.
+  // If so, we must merge currentParts into it to avoid User-User sequence.
+  if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
+    const lastUserParts = contents[contents.length - 1].parts;
+    // Append current parts to the last user turn
+    contents[contents.length - 1].parts = [...lastUserParts, ...currentParts];
+  } else {
+    // Otherwise, add as a new turn
+    contents.push({ role: 'user', parts: currentParts });
+  }
 
   try {
     const config: any = {};
@@ -271,8 +316,11 @@ export const refineContent = async (
       }
     }
 
-    return { images: generatedImages, text: generatedText };
-
+    return {
+      images: generatedImages,
+      text: generatedText,
+      parts: response.candidates?.[0]?.content?.parts
+    };
   } catch (error) {
     console.error("Refinement Error:", error);
     throw error;

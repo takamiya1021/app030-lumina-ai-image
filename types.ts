@@ -38,6 +38,7 @@ export interface GeneratedImage {
   url: string;
   prompt: string;
   model: string;
+  parts?: any[]; // Store raw parts for Gemini 3 Pro thought_signature
   timestamp: number;
 }
 
@@ -45,6 +46,7 @@ export interface ChatMessage {
   role: 'user' | 'model';
   text?: string;
   images?: GeneratedImage[];
+  parts?: any[]; // Store raw parts to preserve thought_signature for Gemini 3 Pro
   timestamp: number;
   isReasoning?: boolean; // For Gemini 3 Pro thinking steps
 }
