@@ -47,17 +47,17 @@ export const saveImageToHistory = async (image: GeneratedImage): Promise<void> =
         };
 
         addRequest.onsuccess = () => {
-            // 2. Check count and delete oldest if > 10
+            // 2. Check count and delete oldest if > 50
             // We use the timestamp index to find the oldest
             const index = store.index('timestamp');
             const countRequest = store.count();
 
             countRequest.onsuccess = () => {
                 const count = countRequest.result;
-                if (count > 10) {
+                if (count > 50) {
                     // Get the oldest keys (smallest timestamp)
-                    // We need to delete (count - 10) items
-                    const deleteCount = count - 10;
+                    // We need to delete (count - 50) items
+                    const deleteCount = count - 50;
 
                     const cursorRequest = index.openCursor(); // Default direction is 'next' (ascending)
                     let deleted = 0;

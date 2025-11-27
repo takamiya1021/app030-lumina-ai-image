@@ -391,7 +391,7 @@ export const CreationPanel: React.FC<Props> = ({ preset, onSuccess, useEconomy, 
                   {useEconomy ? 'エコノミー (Gemini 2.5)' : 'プロフェッショナル (Gemini 3 PRO)'}
                 </span>
                 <span className="text-xs text-gray-400">
-                  {useEconomy ? '高速・低コスト・標準画質' : '高画質(4K)・高推論・検索機能'}
+                  {useEconomy ? '高速・低コスト・標準画質' : '高画質・高推論・検索機能'}
                 </span>
               </div>
             </div>
