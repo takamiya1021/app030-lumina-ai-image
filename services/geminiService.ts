@@ -127,6 +127,10 @@ export const generateContent = async (
 
       const parts: any[] = [];
 
+      console.log("=== DEBUG: Model Selection ===");
+      console.log("selectedModel:", selectedModel);
+      console.log("useEconomyMode:", useEconomyMode);
+
       // Add Reference Images if any (Limit to 14 as per requirements)
       const maxImages = 14;
       const imagesToProcess = referenceImages.slice(0, maxImages);
@@ -190,7 +194,11 @@ export const generateContent = async (
         throw new Error(`生成が停止しました: ${response.candidates[0].finishReason}`);
       }
 
-      return { images: generatedImages, text: generatedText };
+      return {
+        images: generatedImages,
+        text: generatedText,
+        parts: response.candidates?.[0]?.content?.parts
+      };
 
     } catch (error: any) {
       console.error("Gemini Error:", error);
@@ -247,28 +255,14 @@ export const refineContent = async (
             lastGeneratedImagePart = imagePart;
           }
 
-          // Filter out images from history, keep only text
-          const textParts = h.parts.filter((p: any) => !p.inlineData);
-
-          // Only add to contents if there are text parts left (e.g. thoughts)
-          if (textParts.length > 0) {
-            contents.push({
-              role: h.role,
-              parts: textParts
-            });
-          }
-          // If a model turn had ONLY images and we stripped them, we might have an empty turn.
-          // Gemini doesn't like empty turns. If it was pure image generation without thought,
-          // we might skip it in history, BUT we must ensure alternating roles.
-          // For now, assuming 3 Pro always has some thought or we insert a placeholder if needed?
-          // Actually, if we skip a model turn, we might have User-User.
-          // Let's insert a placeholder if empty.
-          else {
-            contents.push({
-              role: h.role,
-              parts: [{ text: "(Image generated)" }]
-            });
-          }
+          // CRITICAL: Keep ALL parts including inlineData
+          // We previously stripped inlineData to save bandwidth, but this removes the thought_signature
+          // attached to the image part, causing 400 errors.
+          // For now, we must send the full parts back.
+          contents.push({
+            role: h.role,
+            parts: h.parts
+          });
         }
         // Handle legacy format or missing parts
         else if (h.images && h.images.length > 0) {

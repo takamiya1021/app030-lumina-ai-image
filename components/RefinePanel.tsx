@@ -112,9 +112,10 @@ export const RefinePanel: React.FC<Props> = ({ initialImage }) => {
       setUploadedFiles([]);
 
     } catch (e) {
+      console.error("RefinePanel Error Caught:", e);
       setHistory(prev => [...prev, {
         role: 'model',
-        text: e instanceof Error ? e.message : "リクエストの処理中にエラーが発生しました。もう一度お試しください。",
+        text: e instanceof Error ? `エラー: ${e.message}` : "エラーが発生しました（詳細不明）。もう一度お試しください。",
         timestamp: Date.now()
       }]);
     } finally {
