@@ -1,26 +1,26 @@
-# Walkthrough - Gemini Image Generation Fixes
+# Walkthrough - Label Updates
 
-## 1. Gemini 2.5 Flash 500 Error
+Successfully completed two improvements to the Lumina AI Image Studio:
 
-**Issue**: 500 Internal Error when generating images in Economy Mode.
-**Root Cause**: Incorrect model name in `types.ts`.
-**Fix**:
-- Changed `ModelType.GEMINI_2_5_FLASH` from `gemini-2.0-flash-exp` to `gemini-2.5-flash-image`.
-- Verified that `contents` structure (single object vs array) was not the primary cause, though array is the official REST API format.
+## 1. History Limit Increase
 
-## 2. Gemini 3 Pro Refinement Error
+### Changes
+- [storageService.ts](file:///home/ustar-wsl-2-2/projects/100apps/app030-lumina-ai-image/services/storageService.ts): Increased image history limit from 10 to 50 items
 
-**Issue**: 400 Bad Request (`Text part is missing a thought_signature`) when refining images.
-**Root Cause**: Gemini 3 Pro requires a `thought_signature` from the previous turn to maintain conversational context. This signature was lost because we were only saving the image URL and text, not the raw API response parts.
+### Verification
+✓ Code verified: limit check is now `count > 50`
 
-**Fix**:
-### Data Structure Updates
-- Added `parts?: any[]` to `GeneratedImage` and `ChatMessage` interfaces in `types.ts`.
+---
 
-### Persistence Logic
-- **Creation**: `geminiService.ts` now returns raw `parts` from the API. `CreationPanel.tsx` saves these parts into the `GeneratedImage` object.
-- **Refinement**: `RefinePanel.tsx` uses the saved `parts` when initializing the chat history.
+## 2. Economy Toggle Label Cleanup
 
-### Legacy Support (Fallback)
-- In `geminiService.ts`, added logic to handle history items that lack `parts` (legacy images).
-- **Strategy**: If `parts` are missing, the item is NOT sent as a `model` history turn. Instead, its images are extracted and sent as `user` input attachments for the current turn. This avoids the "missing signature" error while allowing re-editing of old images.
+### Changes
+- [CreationPanel.tsx](file:///home/ustar-wsl-2-2/projects/100apps/app030-lumina-ai-image/components/CreationPanel.tsx): Removed "(4K)" from Gemini 3 Pro label
+  - Before: `高画質(4K)・高推論・検索機能`
+  - After: `高画質・高推論・検索機能`
+
+### Rationale
+The `imageSize: '4K'` configuration is commented out in `geminiService.ts`, resulting in default 1K quality. The label now accurately reflects the actual behavior.
+
+### Verification
+✓ Label text updated correctly on line 394

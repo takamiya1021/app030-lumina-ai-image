@@ -1,37 +1,25 @@
-# Fix Gemini 2.5 Flash Error & Revert Search Toggle
+# Improve Error Reporting in Refine Panel
 
-## Problem
-The user clarified that the 500 error occurred with Gemini 2.5 Flash, not Gemini 3 Pro.
-The previous addition of the Google Search toggle for Gemini 3 Pro was based on a misunderstanding and should be reverted.
-The 500 error with Gemini 2.5 Flash needs to be addressed, likely by ensuring the correct model name and configuration.
+User is experiencing generic error messages ("リクエストの処理中にエラーが発生しました") when using the Refine feature. This plan aims to surface detailed error information (status codes, error messages) to help diagnose the issue.
+
+## User Review Required
+None.
 
 ## Proposed Changes
 
-### `components/CreationPanel.tsx`
-
-#### [MODIFY] [CreationPanel.tsx](file:///home/ustar-wsl-2-2/projects/100apps/app030-lumina-ai-image/components/CreationPanel.tsx)
-- Revert the addition of `useGrounding` state and toggle UI.
-- Remove `useGrounding` argument from `generateContent` call.
-
-### `services/geminiService.ts`
-
+### Services
 #### [MODIFY] [geminiService.ts](file:///home/ustar-wsl-2-2/projects/100apps/app030-lumina-ai-image/services/geminiService.ts)
-- Revert `useGrounding` parameter in `generateContent` and `refineContent`.
-- Remove conditional `googleSearch` logic.
-- **Fix for Gemini 2.5**: Ensure the model name is correct.
-    - Current: `gemini-2.5-flash-image` (in `types.ts`)
-    - I will verify if this needs to be updated or if the config needs adjustment.
-    - I will ensure `imageConfig` is correctly passed for 2.5 Flash.
+- Update `generateContent` and `refineContent` to include original error details in the thrown error message.
+- Format: `Error: [Original Message] (Reason)` instead of just `(Reason)`.
 
-### `types.ts`
-
-#### [MODIFY] [types.ts](file:///home/ustar-wsl-2-2/projects/100apps/app030-lumina-ai-image/types.ts)
-- Verify `GEMINI_2_5_FLASH` value. If "Nano Banana" implies a specific model version, I might need to update it, but `gemini-2.5-flash-image` is the standard public name.
+### Components
+#### [MODIFY] [RefinePanel.tsx](file:///home/ustar-wsl-2-2/projects/100apps/app030-lumina-ai-image/components/RefinePanel.tsx)
+- Update `handleSend` to catch the error and display `e.message` in the chat history instead of a hardcoded generic string.
 
 ## Verification Plan
 
 ### Manual Verification
 1.  Open the application.
-2.  Select a preset and enable "Economy Mode" (Gemini 2.5).
-3.  Generate an image.
-4.  Verify that the 500 error is resolved.
+2.  Go to the Refine (Edit) panel.
+3.  Attempt to refine an image (which is currently failing).
+4.  Verify that the error message in the chat bubble now contains specific details (e.g., "503 Service Unavailable" or "400 Bad Request") instead of the generic message.

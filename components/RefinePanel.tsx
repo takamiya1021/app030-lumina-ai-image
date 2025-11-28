@@ -114,7 +114,7 @@ export const RefinePanel: React.FC<Props> = ({ initialImage }) => {
     } catch (e) {
       setHistory(prev => [...prev, {
         role: 'model',
-        text: "リクエストの処理中にエラーが発生しました。もう一度お試しください。",
+        text: e instanceof Error ? e.message : "リクエストの処理中にエラーが発生しました。もう一度お試しください。",
         timestamp: Date.now()
       }]);
     } finally {

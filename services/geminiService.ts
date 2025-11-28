@@ -208,7 +208,7 @@ export const generateContent = async (
         errorReason = "（タイムアウト）";
       }
 
-      throw new Error(`生成に失敗しました。もう一度お試しください${errorReason}`);
+      throw new Error(`生成に失敗しました: ${error.message} ${errorReason}`);
     }
   }
 };
@@ -435,7 +435,7 @@ export const refineContent = async (
       errorReason = "（タイムアウト）";
     }
 
-    throw new Error(`リクエストの処理中にエラーが発生しました。もう一度お試しください${errorReason}`);
+    throw new Error(`リクエストの処理中にエラーが発生しました: ${error.message} ${errorReason}`);
   }
 }
 
