@@ -254,47 +254,61 @@ export const refineContent = async (
           if (imagePart) {
             lastGeneratedImagePart = imagePart;
           }
+        } else if (h.images && h.images.length > 0) {
+          // Legacy/Flash format image tracking
+          const img = h.images[h.images.length - 1];
+          const match = img.url.match(/^data:(.+?);base64,(.+)$/);
+          if (match) {
+            lastGeneratedImagePart = {
+              inlineData: { mimeType: match[1], data: match[2] }
+            };
+          }
+        }
 
-          // CRITICAL: Keep ALL parts including inlineData
-          // We previously stripped inlineData to save bandwidth, but this removes the thought_signature
-          // attached to the image part, causing 400 errors.
-          // For now, we must send the full parts back.
+        // VALIDATION: Is this a valid Gemini 3 Pro turn?
+        // It must have a thought_signature.
+        // We enforce a STRICT ALLOWLIST: Only include turns we are 100% sure are Gemini 3 Pro.
+        // This excludes Gemini 2.5 Flash, Imagen 4, and any other future models that don't output signatures.
+
+        let isValid3ProTurn = false;
+
+        // Check: Explicit model name in images (Source of Truth)
+        if (h.images && h.images.length > 0) {
+          const imgModel = h.images[0].model;
+          // Check if model name contains BOTH "3" and "Pro" (case insensitive just in case)
+          if (imgModel && /3.*Pro/i.test(imgModel)) {
+            isValid3ProTurn = true;
+          }
+        }
+
+        // Note: We intentionally SKIP text-only turns (where h.images is empty) because
+        // we cannot easily verify which model generated them. 
+        // Sending a text-only turn from Flash (no signature) to 3 Pro would cause a 400 error.
+        // Since this is an Image Refinement app, skipping text-only context is an acceptable trade-off for stability.
+
+        if (isValid3ProTurn) {
+          // It's a valid 3 Pro turn, keep it.
           contents.push({
             role: h.role,
             parts: h.parts
           });
-        }
-        // Handle legacy format or missing parts
-        else if (h.images && h.images.length > 0) {
-          // It's a model turn with images but no parts structure (legacy).
-          // Just track the image.
-          const img = h.images[h.images.length - 1]; // Use last image of the batch
-          const match = img.url.match(/^data:(.+?);base64,(.+)$/);
-          if (match) {
-            lastGeneratedImagePart = {
-              inlineData: {
-                mimeType: match[1],
-                data: match[2]
-              }
-            };
-          }
-          contents.push({
-            role: h.role,
-            parts: [{ text: h.text || "(Image generated)" }]
-          });
         } else {
-          // Just text
-          contents.push({
-            role: h.role,
-            parts: [{ text: h.text || "..." }]
-          });
+          // It's a Flash/Legacy turn. Unsafe for 3 Pro history.
+          console.log("Skipping non-3-Pro history item to avoid thought_signature error.");
+
+          // CRITICAL: If we skip a Model turn, we must also remove the PRECEDING User turn
+          // to maintain User -> Model -> User alternation.
+          // Otherwise we get User -> [Skipped] -> User, which merges into User-User (bad) or separate User-User (bad).
+          if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
+            contents.pop(); // Remove the orphaned user turn
+          }
         }
       } else {
-        // User role - usually just text in history, images are heavy.
-        // Strip images from user history too? Usually user sends text + ref image.
-        // Ref images in history might be needed if they were the *source* of the edit.
-        // But for "Edit this image", the context is the Model's last image.
-        // Let's keep user text, strip user images from history to be safe.
+        // User role
+        // We add it tentatively. If the NEXT turn (Model) is invalid and skipped,
+        // this User turn will be popped in the next iteration (see above).
+
+        // Strip images from user history to save space/complexity
         const parts: any[] = [];
         if (h.parts && Array.isArray(h.parts)) {
           h.parts.forEach((p: any) => {
