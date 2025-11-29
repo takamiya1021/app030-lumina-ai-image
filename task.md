@@ -15,3 +15,6 @@
     - [x] Verify Gemini 2.5 Flash -> Gemini 3 Pro refinement
     - [x] Verify Imagen 4 -> Gemini 3 Pro refinement
     - [x] Implement strict allowlist for Gemini 3 Pro history
+
+- [x] **Deployment**
+    - [x] Build and Push changes
