@@ -291,7 +291,7 @@ const App: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="pb-4 md:pb-0 animate-in fade-in slide-in-from-right-4 duration-500">
+            <div className="pb-24 md:pb-0 animate-in fade-in slide-in-from-right-4 duration-500">
               <RefinePanel initialImage={lastGeneratedImage} />
             </div>
           )}
