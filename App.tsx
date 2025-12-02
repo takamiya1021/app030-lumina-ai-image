@@ -299,8 +299,8 @@ const App: React.FC = () => {
       </main>
 
       {/* Mobile Bottom Navigation - Improved Design */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex justify-center">
-        <div className="w-full max-w-7xl mx-auto relative">
+      <div className="md:hidden fixed bottom-0 inset-x-0 z-50">
+        <div className="mx-auto px-safe relative max-w-7xl">
           {/* Floating blur container with strong top shadow/border for separation */}
           <div className="absolute inset-0 bg-gray-950/90 backdrop-blur-xl border-t border-white/10 shadow-[0_-10px_30px_rgba(0,0,0,0.6)]"></div>
 
