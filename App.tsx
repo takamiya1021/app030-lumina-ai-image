@@ -102,7 +102,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-950 text-gray-100 font-sans selection:bg-blue-500/30 relative">
+    <div className="min-h-screen flex flex-col bg-gray-950 text-gray-100 font-sans selection:bg-blue-500/30 relative overflow-x-hidden">
 
       {/* Authentication Modal Overlay */}
       {(!apiKeyValid && showAuthModal) && (
@@ -239,7 +239,7 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className="flex-1 relative pb-24 md:pb-0">
         {/* Background Glow */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[min(800px,100vw)] h-[500px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none" />
 
         <div className="container mx-auto h-full p-4 md:p-8 max-w-7xl relative z-10">
 
