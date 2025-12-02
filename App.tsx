@@ -303,7 +303,7 @@ const App: React.FC = () => {
         {/* Floating blur container with strong top shadow/border for separation */}
         <div className="absolute inset-0 bg-gray-950/90 backdrop-blur-xl border-t border-white/10 shadow-[0_-10px_30px_rgba(0,0,0,0.6)]"></div>
 
-        <div className="relative flex justify-around items-center p-2 pb-5">
+        <div className="relative flex justify-around items-center p-2 pb-2">
           {/* New Create Button */}
           <button
             onClick={() => {
@@ -311,10 +311,10 @@ const App: React.FC = () => {
               setCreationUploadedFiles([]);
               setCurrentMode('create');
             }}
-            className="relative group flex-1 flex flex-col items-center gap-1.5 py-2 rounded-xl transition-all duration-300"
+            className="relative group flex-1 flex flex-col items-center gap-1 py-1.5 rounded-xl transition-all duration-300"
           >
-            <div className={`relative p-1 rounded-full transition-all duration-300 ${currentMode === 'create' && Object.keys(creationFormData).length === 0 ? 'text-blue-400 transform -translate-y-1' : 'text-gray-500 group-hover:text-gray-400'}`}>
-              <PlusCircle size={22} strokeWidth={2} />
+            <div className={`relative p-1 rounded-full transition-all duration-300 ${currentMode === 'create' && Object.keys(creationFormData).length === 0 ? 'text-blue-400 transform -translate-y-0.5' : 'text-gray-500 group-hover:text-gray-400'}`}>
+              <PlusCircle size={20} strokeWidth={2} />
             </div>
             <span className={`text-[10px] font-medium tracking-wide transition-colors ${currentMode === 'create' && Object.keys(creationFormData).length === 0 ? 'text-blue-100' : 'text-gray-500'}`}>
               新規作成
@@ -324,16 +324,16 @@ const App: React.FC = () => {
           {/* Continue Create Button */}
           <button
             onClick={() => setCurrentMode('create')}
-            className="relative group flex-1 flex flex-col items-center gap-1.5 py-2 rounded-xl transition-all duration-300"
+            className="relative group flex-1 flex flex-col items-center gap-1 py-1.5 rounded-xl transition-all duration-300"
           >
             {currentMode === 'create' && Object.keys(creationFormData).length > 0 && (
               <div className="absolute inset-0 bg-blue-500/5 rounded-xl blur-sm" />
             )}
-            <div className={`relative p-1 rounded-full transition-all duration-300 ${currentMode === 'create' && Object.keys(creationFormData).length > 0 ? 'text-blue-400 transform -translate-y-1' : 'text-gray-500 group-hover:text-gray-400'}`}>
-              <LayoutGrid size={22} strokeWidth={currentMode === 'create' && Object.keys(creationFormData).length > 0 ? 2.5 : 2} />
+            <div className={`relative p-1 rounded-full transition-all duration-300 ${currentMode === 'create' && Object.keys(creationFormData).length > 0 ? 'text-blue-400 transform -translate-y-0.5' : 'text-gray-500 group-hover:text-gray-400'}`}>
+              <LayoutGrid size={20} strokeWidth={currentMode === 'create' && Object.keys(creationFormData).length > 0 ? 2.5 : 2} />
               {/* Active Dot */}
               {currentMode === 'create' && Object.keys(creationFormData).length > 0 && (
-                <span className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-blue-400 rounded-full shadow-[0_0_8px_rgba(59,130,246,1)]"></span>
+                <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 bg-blue-400 rounded-full shadow-[0_0_8px_rgba(59,130,246,1)]"></span>
               )}
             </div>
             <span className={`text-[10px] font-medium tracking-wide transition-colors ${currentMode === 'create' && Object.keys(creationFormData).length > 0 ? 'text-blue-100' : 'text-gray-500'}`}>
@@ -342,21 +342,21 @@ const App: React.FC = () => {
           </button>
 
           {/* Divider */}
-          <div className="w-px h-8 bg-gradient-to-b from-transparent via-gray-700/50 to-transparent"></div>
+          <div className="w-px h-6 bg-gradient-to-b from-transparent via-gray-700/50 to-transparent"></div>
 
           {/* Refine Button */}
           <button
             onClick={() => setCurrentMode('refine')}
-            className="relative group flex-1 flex flex-col items-center gap-1.5 py-2 rounded-xl transition-all duration-300"
+            className="relative group flex-1 flex flex-col items-center gap-1 py-1.5 rounded-xl transition-all duration-300"
           >
             {currentMode === 'refine' && (
               <div className="absolute inset-0 bg-purple-500/5 rounded-xl blur-sm" />
             )}
-            <div className={`relative p-1 rounded-full transition-all duration-300 ${currentMode === 'refine' ? 'text-purple-400 transform -translate-y-1' : 'text-gray-500 group-hover:text-gray-400'}`}>
-              <Layers size={22} strokeWidth={currentMode === 'refine' ? 2.5 : 2} />
+            <div className={`relative p-1 rounded-full transition-all duration-300 ${currentMode === 'refine' ? 'text-purple-400 transform -translate-y-0.5' : 'text-gray-500 group-hover:text-gray-400'}`}>
+              <Layers size={20} strokeWidth={currentMode === 'refine' ? 2.5 : 2} />
               {/* Active Dot */}
               {currentMode === 'refine' && (
-                <span className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-purple-400 rounded-full shadow-[0_0_8px_rgba(168,85,247,1)]"></span>
+                <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 bg-purple-400 rounded-full shadow-[0_0_8px_rgba(168,85,247,1)]"></span>
               )}
             </div>
             <span className={`text-[10px] font-medium tracking-wide transition-colors ${currentMode === 'refine' ? 'text-purple-100' : 'text-gray-500'}`}>
