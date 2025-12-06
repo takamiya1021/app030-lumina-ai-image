@@ -12,6 +12,7 @@ const App: React.FC = () => {
   const [apiKeyValid, setApiKeyValid] = useState<boolean>(false);
   const [loadingKey, setLoadingKey] = useState<boolean>(true);
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [selectedPreset, setSelectedPreset] = useState<PresetConfig>(PRESETS[0]);
   const [currentMode, setCurrentMode] = useState<ViewMode>('create');
   const [manualKey, setManualKey] = useState<string>('');
@@ -19,12 +20,22 @@ const App: React.FC = () => {
   const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState<number>(0);
   const [creationFormData, setCreationFormData] = useState<Record<string, string>>({});
   const [creationUploadedFiles, setCreationUploadedFiles] = useState<File[]>([]);
+  const [timeoutSeconds, setTimeoutSeconds] = useState<number>(60);
 
   // State to pass from Creation to Refine
   const [lastGeneratedImage, setLastGeneratedImage] = useState<GeneratedImage | undefined>(undefined);
+  const [lastGeneratedText, setLastGeneratedText] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     checkKey();
+    // Load timeout setting from localStorage
+    const storedTimeout = localStorage.getItem('lumina_timeout_seconds');
+    if (storedTimeout) {
+      const seconds = parseInt(storedTimeout, 10);
+      if (!isNaN(seconds) && seconds > 0) {
+        setTimeoutSeconds(seconds);
+      }
+    }
   }, []);
 
   const checkKey = async () => {
@@ -78,12 +89,20 @@ const App: React.FC = () => {
     if (images.length > 0) {
       const newImage = images[0];
       setLastGeneratedImage(newImage);
+      setLastGeneratedText(undefined); // Clear text-only state
 
       // Save to history
       await saveImageToHistory(newImage);
       setHistoryRefreshTrigger(prev => prev + 1);
 
       // Auto switch to refine mode to show the result
+      setCurrentMode('refine');
+    } else if (text) {
+      // Text-only response (no images generated)
+      setLastGeneratedImage(undefined); // Clear image state
+      setLastGeneratedText(text);
+
+      // Auto switch to refine mode to show the text response
       setCurrentMode('refine');
     }
   };
@@ -97,12 +116,102 @@ const App: React.FC = () => {
     }
   };
 
+  const saveTimeoutSetting = () => {
+    if (timeoutSeconds > 0) {
+      localStorage.setItem('lumina_timeout_seconds', timeoutSeconds.toString());
+      alert('タイムアウト設定を保存しました。');
+    } else {
+      alert('タイムアウト時間は1秒以上に設定してください。');
+    }
+  };
+
   if (loadingKey) {
     return <div className="h-screen w-full flex items-center justify-center bg-gray-950 text-gray-500">読み込み中...</div>;
   }
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-950 text-gray-100 font-sans selection:bg-blue-500/30 relative overflow-x-hidden">
+
+      {/* Settings Modal Overlay */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-950/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
+          <div className="relative max-w-md w-full space-y-6 bg-gray-900 p-8 rounded-2xl border border-gray-800 shadow-2xl">
+            <button
+              onClick={() => setShowSettingsModal(false)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors p-1 rounded-full hover:bg-gray-800"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="mx-auto w-16 h-16 bg-purple-900/20 rounded-full flex items-center justify-center text-purple-400 mb-4">
+              <Settings size={32} />
+            </div>
+
+            <div className="text-center">
+              <h1 className="text-2xl font-bold text-white mb-2">設定</h1>
+              <p className="text-gray-400 text-sm">
+                APIキーとタイムアウト時間を管理できます。
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* API Key Section */}
+              <div className="p-4 bg-gray-950/50 rounded-lg border border-gray-800">
+                <h3 className="text-sm font-semibold text-gray-300 mb-2">APIキー設定</h3>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400">
+                    {apiKeyValid ? '✅ 設定済み' : '❌ 未設定'}
+                  </span>
+                  {apiKeyValid && (
+                    <button
+                      onClick={clearKey}
+                      className="text-xs text-red-400 hover:text-red-300 transition-colors px-3 py-1 rounded-lg hover:bg-red-900/20"
+                    >
+                      リセット
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Timeout Setting Section */}
+              <div className="p-4 bg-gray-950/50 rounded-lg border border-gray-800">
+                <h3 className="text-sm font-semibold text-gray-300 mb-3">⏱️ タイムアウト設定</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      min="10"
+                      max="300"
+                      value={timeoutSeconds}
+                      onChange={(e) => setTimeoutSeconds(parseInt(e.target.value, 10) || 60)}
+                      className="flex-1 px-4 py-2 bg-gray-950 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all"
+                    />
+                    <span className="text-sm text-gray-400">秒</span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    画像生成のタイムアウト時間です。複雑な画像や高解像度の場合は長めに設定してください。
+                    <br />
+                    推奨: 60-120秒（デフォルト: 60秒）
+                  </p>
+                  <button
+                    onClick={saveTimeoutSetting}
+                    className="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-medium transition-all text-sm"
+                  >
+                    タイムアウト設定を保存
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowSettingsModal(false)}
+              className="w-full py-3 text-gray-500 hover:text-gray-300 text-sm transition-colors"
+            >
+              閉じる
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Authentication Modal Overlay */}
       {(!apiKeyValid && showAuthModal) && (
@@ -217,12 +326,12 @@ const App: React.FC = () => {
 
           {apiKeyValid ? (
             <button
-              onClick={clearKey}
+              onClick={() => setShowSettingsModal(true)}
               className="flex items-center gap-2 text-xs text-gray-400 hover:text-white transition-colors px-3 py-2 rounded-lg hover:bg-gray-800"
-              title="APIキー設定 (リセット)"
+              title="設定"
             >
               <Settings size={18} />
-              <span className="hidden md:inline">API設定</span>
+              <span className="hidden md:inline">設定</span>
             </button>
           ) : (
             <button
@@ -292,7 +401,7 @@ const App: React.FC = () => {
             </div>
           ) : (
             <div className="pb-24 md:pb-0 animate-in fade-in slide-in-from-right-4 duration-500">
-              <RefinePanel initialImage={lastGeneratedImage} />
+              <RefinePanel initialImage={lastGeneratedImage} initialText={lastGeneratedText} />
             </div>
           )}
         </div>

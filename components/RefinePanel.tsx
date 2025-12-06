@@ -7,9 +7,10 @@ import { ImageHistorySlider } from './ImageHistorySlider';
 
 interface Props {
   initialImage?: GeneratedImage;
+  initialText?: string;
 }
 
-export const RefinePanel: React.FC<Props> = ({ initialImage }) => {
+export const RefinePanel: React.FC<Props> = ({ initialImage, initialText }) => {
   const [history, setHistory] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -30,8 +31,15 @@ export const RefinePanel: React.FC<Props> = ({ initialImage }) => {
         parts: initialImage.parts, // Use raw parts from initial image (contains thought_signature)
         text: "生成された画像です。どのように調整しますか？ オブジェクトの追加、色の変更、スタイルの調整などを指示できます。"
       }]);
+    } else if (initialText) {
+      // Handle text-only response from creation
+      setHistory([{
+        role: 'model',
+        timestamp: Date.now(),
+        text: initialText
+      }]);
     }
-  }, [initialImage]);
+  }, [initialImage, initialText]);
 
   useEffect(() => {
     if (scrollRef.current) {

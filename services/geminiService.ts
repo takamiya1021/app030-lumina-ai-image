@@ -20,11 +20,23 @@ interface GenerationResult {
 }
 
 // Helper for timeout
-const withTimeout = <T>(promise: Promise<T>, timeoutMs: number = 60000): Promise<T> => {
+const getTimeoutMs = (): number => {
+  const stored = localStorage.getItem('lumina_timeout_seconds');
+  if (stored) {
+    const seconds = parseInt(stored, 10);
+    if (!isNaN(seconds) && seconds > 0) {
+      return seconds * 1000; // Convert to milliseconds
+    }
+  }
+  return 60000; // Default: 60 seconds
+};
+
+const withTimeout = <T>(promise: Promise<T>, timeoutMs?: number): Promise<T> => {
+  const timeout = timeoutMs ?? getTimeoutMs();
   return Promise.race([
     promise,
     new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`Timeout: Request took longer than ${timeoutMs}ms`)), timeoutMs)
+      setTimeout(() => reject(new Error(`TIMEOUT:${timeout}`)), timeout)
     )
   ]);
 };
@@ -104,8 +116,10 @@ export const generateContent = async (
       if (error.message && error.message.includes("safety")) {
         throw new Error(`Safety Filterによりブロックされました: ${error.message}`);
       }
-      if (error.message && error.message.includes("Timeout")) {
-        throw new Error("生成がタイムアウトしました。もう一度お試しください。");
+      if (error.message && error.message.startsWith("TIMEOUT:")) {
+        const timeoutMs = error.message.split(":")[1];
+        const seconds = Math.floor(parseInt(timeoutMs) / 1000);
+        throw new Error(`⏱️ 生成がタイムアウトしました（設定：${seconds}秒）\n\n設定画面でタイムアウト時間を延長できます。`);
       }
       throw error;
     }
@@ -212,8 +226,10 @@ export const generateContent = async (
         errorReason = "（Google側の問題、時間を置いて再試行）";
       } else if (error.status === 400 || error.message?.includes("400")) {
         errorReason = "（リクエストの問題）";
-      } else if (error.message?.includes("Timeout")) {
-        errorReason = "（タイムアウト）";
+      } else if (error.message?.startsWith("TIMEOUT:")) {
+        const timeoutMs = error.message.split(":")[1];
+        const seconds = Math.floor(parseInt(timeoutMs) / 1000);
+        throw new Error(`⏱️ 生成がタイムアウトしました（設定：${seconds}秒）\n\n設定画面でタイムアウト時間を延長できます。`);
       }
 
       throw new Error(`生成に失敗しました: ${error.message} ${errorReason}`);
@@ -439,8 +455,10 @@ export const refineContent = async (
       errorReason = "（Google側の問題、時間を置いて再試行）";
     } else if (error.status === 400 || error.message?.includes("400")) {
       errorReason = "（リクエストの問題）";
-    } else if (error.message?.includes("Timeout")) {
-      errorReason = "（タイムアウト）";
+    } else if (error.message?.startsWith("TIMEOUT:")) {
+      const timeoutMs = error.message.split(":")[1];
+      const seconds = Math.floor(parseInt(timeoutMs) / 1000);
+      throw new Error(`⏱️ 編集がタイムアウトしました（設定：${seconds}秒）\n\n設定画面でタイムアウト時間を延長できます。`);
     }
 
     throw new Error(`リクエストの処理中にエラーが発生しました: ${error.message} ${errorReason}`);

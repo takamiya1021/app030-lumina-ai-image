@@ -54,10 +54,10 @@ export const saveImageToHistory = async (image: GeneratedImage): Promise<void> =
 
             countRequest.onsuccess = () => {
                 const count = countRequest.result;
-                if (count > 50) {
+                if (count > 30) {
                     // Get the oldest keys (smallest timestamp)
-                    // We need to delete (count - 50) items
-                    const deleteCount = count - 50;
+                    // We need to delete (count - 30) items
+                    const deleteCount = count - 30;
 
                     const cursorRequest = index.openCursor(); // Default direction is 'next' (ascending)
                     let deleted = 0;
@@ -116,15 +116,15 @@ export const saveRefinedImageToHistory = async (image: GeneratedImage): Promise<
         };
 
         addRequest.onsuccess = () => {
-            // 2. Check count and delete oldest if > 20
+            // 2. Check count and delete oldest if > 30
             const index = store.index('timestamp');
             const countRequest = store.count();
 
             countRequest.onsuccess = () => {
                 const count = countRequest.result;
-                if (count > 20) {
+                if (count > 30) {
                     // Get the oldest keys (smallest timestamp)
-                    const deleteCount = count - 20;
+                    const deleteCount = count - 30;
 
                     const cursorRequest = index.openCursor();
                     let deleted = 0;
